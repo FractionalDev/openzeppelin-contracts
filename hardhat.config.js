@@ -6,6 +6,10 @@
 // - COMPILE_VERSION:   compiler version (default: 0.8.9)
 // - COINMARKETCAP:     coinmarkercat api key for USD value in gas report
 
+require('@nomiclabs/hardhat-waffle');
+
+const RINKEBY_RPC_URL = process.env.RINKEBY_RPC_URL || '';
+
 const fs = require('fs');
 const path = require('path');
 const argv = require('yargs/yargs')()
@@ -68,6 +72,10 @@ module.exports = {
     },
   },
   networks: {
+    rinkeby: {
+      url: RINKEBY_RPC_URL,
+      saveDeployments: true,
+    },
     hardhat: {
       blockGasLimit: 10000000,
       allowUnlimitedContractSize: !withOptimizations,
