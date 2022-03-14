@@ -4,13 +4,18 @@
 pragma solidity ^0.8.0;
 import "../token/ERC1155/ERC1155.sol";
 import "../security/Pausable.sol";
+import  "../access/Ownable.sol";
 
-contract JumpMultiToken is ERC1155, Pausable {
+contract JumpMultiToken is ERC1155, Pausable, Ownable {
 
-    constructor() ERC1155("https://eth.fractionalist.io/token/{id}.json") {
+    constructor(string memory uri) ERC1155(uri) {
     }
 
     mapping(uint256 => uint256) private _totalSupply;
+
+    function pause() public onlyOwner {
+        _pause();
+    }
 
     /**
      * @dev Total amount of tokens in with a given id.

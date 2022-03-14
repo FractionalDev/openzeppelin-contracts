@@ -4,10 +4,10 @@ const { ZERO_ADDRESS } = constants;
 const { expect } = require('chai');
 
 const { shouldBehaveLikeERC1155 } = require('../token/ERC1155/ERC1155.behavior');
-const ERC1155Mock = artifacts.require('ERC1155Mock');
+const ERC1155Mock = artifacts.require('JumpMultiTokenMock');
 
-contract('MultiToken', function (accounts) {
-  const [operator, tokenHolder, tokenBatchHolder, ...otherAccounts] = accounts;
+contract('JumpMultiToken', function (accounts) {
+  const [operator, tokenHolder, tokenBatchHolder, receiver, other, ...otherAccounts] = accounts;
 
   const initialURI = 'https://token-cdn-domain/{id}.json';
 
@@ -120,7 +120,7 @@ contract('MultiToken', function (accounts) {
       it('reverts when burning a non-existent token id', async function () {
         await expectRevert(
           this.token.burn(tokenHolder, tokenId, mintAmount),
-          'ERC1155: burn amount exceeds balance',
+          'ERC1155: burn amount exceeds totalSupply',
         );
       });
 
@@ -135,7 +135,7 @@ contract('MultiToken', function (accounts) {
 
         await expectRevert(
           this.token.burn(tokenHolder, tokenId, mintAmount.addn(1)),
-          'ERC1155: burn amount exceeds balance',
+          'ERC1155: burn amount exceeds totalSupply',
         );
       });
 
@@ -192,7 +192,7 @@ contract('MultiToken', function (accounts) {
       it('reverts when burning a non-existent token id', async function () {
         await expectRevert(
           this.token.burnBatch(tokenBatchHolder, tokenBatchIds, burnAmounts),
-          'ERC1155: burn amount exceeds balance',
+          'ERC1155: burn amount exceeds totalSupply',
         );
       });
 
@@ -227,6 +227,198 @@ contract('MultiToken', function (accounts) {
             expect(holderBatchBalances[i]).to.be.bignumber.equal(mintAmounts[i].sub(burnAmounts[i]));
           }
         });
+      });
+    });
+  });
+
+  describe('ERC1155Supply', function () {
+    const firstTokenId = new BN('37');
+    const firstTokenAmount = new BN('42');
+
+    const secondTokenId = new BN('19842');
+    const secondTokenAmount = new BN('23');
+
+    context('before mint', function () {
+      it('exist', async function () {
+        expect(await this.token.exists(firstTokenId)).to.be.equal(false);
+      });
+
+      it('totalSupply', async function () {
+        expect(await this.token.totalSupply(firstTokenId)).to.be.bignumber.equal('0');
+      });
+    });
+
+    context('after mint', function () {
+      context('single', function () {
+        beforeEach(async function () {
+          await this.token.mint(tokenHolder, firstTokenId, firstTokenAmount, '0x');
+        });
+
+        it('exist', async function () {
+          expect(await this.token.exists(firstTokenId)).to.be.equal(true);
+        });
+
+        it('totalSupply', async function () {
+          expect(await this.token.totalSupply(firstTokenId)).to.be.bignumber.equal(firstTokenAmount);
+        });
+      });
+
+      context('batch', function () {
+        beforeEach(async function () {
+          await this.token.mintBatch(
+            tokenHolder,
+            [ firstTokenId, secondTokenId ],
+            [ firstTokenAmount, secondTokenAmount ],
+            '0x',
+          );
+        });
+
+        it('exist', async function () {
+          expect(await this.token.exists(firstTokenId)).to.be.equal(true);
+          expect(await this.token.exists(secondTokenId)).to.be.equal(true);
+        });
+
+        it('totalSupply', async function () {
+          expect(await this.token.totalSupply(firstTokenId)).to.be.bignumber.equal(firstTokenAmount);
+          expect(await this.token.totalSupply(secondTokenId)).to.be.bignumber.equal(secondTokenAmount);
+        });
+      });
+    });
+
+    context('after burn', function () {
+      context('single', function () {
+        beforeEach(async function () {
+          await this.token.mint(tokenHolder, firstTokenId, firstTokenAmount, '0x');
+          await this.token.burn(tokenHolder, firstTokenId, firstTokenAmount);
+        });
+
+        it('exist', async function () {
+          expect(await this.token.exists(firstTokenId)).to.be.equal(false);
+        });
+
+        it('totalSupply', async function () {
+          expect(await this.token.totalSupply(firstTokenId)).to.be.bignumber.equal('0');
+        });
+      });
+
+      context('batch', function () {
+        beforeEach(async function () {
+          await this.token.mintBatch(
+            tokenHolder,
+            [ firstTokenId, secondTokenId ],
+            [ firstTokenAmount, secondTokenAmount ],
+            '0x',
+          );
+          await this.token.burnBatch(
+            tokenHolder,
+            [ firstTokenId, secondTokenId ],
+            [ firstTokenAmount, secondTokenAmount ],
+          );
+        });
+
+        it('exist', async function () {
+          expect(await this.token.exists(firstTokenId)).to.be.equal(false);
+          expect(await this.token.exists(secondTokenId)).to.be.equal(false);
+        });
+
+        it('totalSupply', async function () {
+          expect(await this.token.totalSupply(firstTokenId)).to.be.bignumber.equal('0');
+          expect(await this.token.totalSupply(secondTokenId)).to.be.bignumber.equal('0');
+        });
+      });
+    });
+  });
+
+  describe('ERC1155Pauseable', function () {
+    const firstTokenId = new BN('37');
+    const firstTokenAmount = new BN('42');
+
+    const secondTokenId = new BN('19842');
+    const secondTokenAmount = new BN('23');
+
+    beforeEach(async function () {
+      await this.token.setApprovalForAll(operator, true, { from: tokenHolder });
+      await this.token.mint(tokenHolder, firstTokenId, firstTokenAmount, '0x');
+
+      await this.token.pause();
+    });
+
+    it('reverts when trying to safeTransferFrom from holder', async function () {
+      await expectRevert(
+        this.token.safeTransferFrom(tokenHolder, receiver, firstTokenId, firstTokenAmount, '0x', { from: tokenHolder }),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to safeTransferFrom from operator', async function () {
+      await expectRevert(
+        this.token.safeTransferFrom(tokenHolder, receiver, firstTokenId, firstTokenAmount, '0x', { from: operator }),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to safeBatchTransferFrom from holder', async function () {
+      await expectRevert(
+        this.token.safeBatchTransferFrom(
+          tokenHolder, receiver, [firstTokenId], [firstTokenAmount], '0x', { from: tokenHolder }),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to safeBatchTransferFrom from operator', async function () {
+      await expectRevert(
+        this.token.safeBatchTransferFrom(
+          tokenHolder, receiver, [firstTokenId], [firstTokenAmount], '0x', { from: operator },
+        ),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to mint', async function () {
+      await expectRevert(
+        this.token.mint(tokenHolder, secondTokenId, secondTokenAmount, '0x'),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to mintBatch', async function () {
+      await expectRevert(
+        this.token.mintBatch(tokenHolder, [secondTokenId], [secondTokenAmount], '0x'),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to burn', async function () {
+      await expectRevert(
+        this.token.burn(tokenHolder, firstTokenId, firstTokenAmount),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    it('reverts when trying to burnBatch', async function () {
+      await expectRevert(
+        this.token.burnBatch(tokenHolder, [firstTokenId], [firstTokenAmount]),
+        'ERC1155Pausable: token transfer while paused',
+      );
+    });
+
+    describe('setApprovalForAll', function () {
+      it('approves an operator', async function () {
+        await this.token.setApprovalForAll(other, true, { from: tokenHolder });
+        expect(await this.token.isApprovedForAll(tokenHolder, other)).to.equal(true);
+      });
+    });
+
+    describe('balanceOf', function () {
+      it('returns the amount of tokens owned by the given address', async function () {
+        const balance = await this.token.balanceOf(tokenHolder, firstTokenId);
+        expect(balance).to.be.bignumber.equal(firstTokenAmount);
+      });
+    });
+
+    describe('isApprovedForAll', function () {
+      it('returns the approval of the operator', async function () {
+        expect(await this.token.isApprovedForAll(tokenHolder, operator)).to.equal(true);
       });
     });
   });
