@@ -3,6 +3,8 @@
 //
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
+require('dotenv').config();
+
 const hre = require('hardhat');
 
 async function main () {
@@ -15,7 +17,7 @@ async function main () {
 
   // We get the contract to deploy
   const Jump = await hre.ethers.getContractFactory('JumpMultiToken');
-  const jump = await Jump.deploy('http://localhost:8545/nft/{id}.json');
+  const jump = await Jump.deploy('http://localhost:8075/nft/{id}.json');
 
   await jump.deployed();
 

@@ -4,7 +4,7 @@ const { ZERO_ADDRESS } = constants;
 const { expect } = require('chai');
 
 const { shouldBehaveLikeERC1155 } = require('../token/ERC1155/ERC1155.behavior');
-const ERC1155Mock = artifacts.require('JumpMultiTokenMock');
+const JumpMultiToken = artifacts.require('JumpMultiToken');
 
 contract('JumpMultiToken', function (accounts) {
   const [operator, tokenHolder, tokenBatchHolder, receiver, other, ...otherAccounts] = accounts;
@@ -12,7 +12,7 @@ contract('JumpMultiToken', function (accounts) {
   const initialURI = 'https://token-cdn-domain/{id}.json';
 
   beforeEach(async function () {
-    this.token = await ERC1155Mock.new(initialURI);
+    this.token = await JumpMultiToken.new(initialURI);
   });
 
   shouldBehaveLikeERC1155(otherAccounts);

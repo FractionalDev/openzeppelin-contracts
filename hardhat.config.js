@@ -7,6 +7,8 @@
 // - COINMARKETCAP:     coinmarkercat api key for USD value in gas report
 
 require('@nomiclabs/hardhat-waffle');
+require('@nomiclabs/hardhat-etherscan');
+require('dotenv').config();
 
 const RINKEBY_RPC_URL = process.env.RINKEBY_RPC_URL || '';
 
@@ -75,10 +77,18 @@ module.exports = {
     rinkeby: {
       url: RINKEBY_RPC_URL,
       saveDeployments: true,
+      accounts: process.env.TEST_PRIVATE_KEY !== undefined ? [process.env.TEST_PRIVATE_KEY] : [],
     },
     hardhat: {
       blockGasLimit: 10000000,
       allowUnlimitedContractSize: !withOptimizations,
+    },
+  },
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: {
+      rinkeby: process.env.ETHERSCAN_API_KEY || '',
     },
   },
   gasReporter: {

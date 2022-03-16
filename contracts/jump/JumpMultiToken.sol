@@ -4,17 +4,117 @@
 pragma solidity ^0.8.0;
 import "../token/ERC1155/ERC1155.sol";
 import "../security/Pausable.sol";
-import  "../access/Ownable.sol";
+import  "../access/AccessControlEnumerable.sol";
 
-contract JumpMultiToken is ERC1155, Pausable, Ownable {
-
-    constructor(string memory uri) ERC1155(uri) {
-    }
-
+contract JumpMultiToken is Context, AccessControlEnumerable, ERC1155, Pausable {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
     mapping(uint256 => uint256) private _totalSupply;
 
-    function pause() public onlyOwner {
+
+    constructor(string memory uri) ERC1155(uri) {
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _setupRole(MINTER_ROLE, _msgSender());
+        _setupRole(PAUSER_ROLE, _msgSender());
+        _setupRole(BURNER_ROLE, _msgSender());
+    }
+
+    function setURI(string memory newuri) public {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "must be admin");
+        _setURI(newuri);
+    }
+
+    function burn(
+        address account,
+        uint256 id,
+        uint256 value
+    ) public {
+        require(hasRole(BURNER_ROLE, _msgSender()), "must have burner role");
+        _burn(account, id, value);
+    }
+
+    function burnBatch(
+        address account,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) public {
+        require(hasRole(BURNER_ROLE, _msgSender()), "must have burner role" );
+        _burnBatch(account, ids, values);
+    }
+
+ /**
+     * @dev Creates `amount` new tokens for `to`, of token type `id`.
+     *
+     * See {ERC1155-_mint}.
+     *
+     * Requirements:
+     *
+     * - the caller must have the `MINTER_ROLE`.
+     */
+    function mint(
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes memory data
+    ) public {
+        require(hasRole(MINTER_ROLE, _msgSender()), "must have minter role to mint");
+
+        _mint(to, id, amount, data);
+    }
+
+    /**
+     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] variant of {mint}.
+     */
+    function mintBatch(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) public {
+        require(hasRole(MINTER_ROLE, _msgSender()), "must have minter role to mint");
+        _mintBatch(to, ids, amounts, data);
+    }
+
+    /**
+     * @dev Pauses all token transfers.
+     *
+     * See {ERC1155Pausable} and {Pausable-_pause}.
+     *
+     * Requirements:
+     *
+     * - the caller must have the `PAUSER_ROLE`.
+     */
+    function pause() public {
+        require(hasRole(PAUSER_ROLE, _msgSender()), "must have pauser role to pause");
         _pause();
+    }
+
+     /**
+     * @dev Unpauses all token transfers.
+     *
+     * See {ERC1155Pausable} and {Pausable-_unpause}.
+     *
+     * Requirements:
+     *
+     * - the caller must have the `PAUSER_ROLE`.
+     */
+    function unpause() public {
+        require(hasRole(PAUSER_ROLE, _msgSender()), "must have pauser role to unpause");
+        _unpause();
+    }
+
+    /**
+    * @dev See {IERC165-supportsInterface}.
+    */
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(AccessControlEnumerable, ERC1155)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     /**
@@ -46,7 +146,7 @@ contract JumpMultiToken is ERC1155, Pausable, Ownable {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
         
         // Pausable
-        require(!paused(), "ERC1155Pausable: token transfer while paused");
+        require(!paused(), "token transfer while paused");
 
         // ERC1155Supply
         if (from == address(0)) {
@@ -60,7 +160,7 @@ contract JumpMultiToken is ERC1155, Pausable, Ownable {
                 uint256 id = ids[i];
                 uint256 amount = amounts[i];
                 uint256 supply = _totalSupply[id];
-                require(supply >= amount, "ERC1155: burn amount exceeds totalSupply");
+                require(supply >= amount, "burn amount exceeds totalSupply");
                 unchecked {
                     _totalSupply[id] = supply - amount;
                 }
